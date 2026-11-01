@@ -1,0 +1,12 @@
+{
+  "configs": [{
+    "title": "原神，启动！",
+    "config": "config.json",
+    "preferences": [
+      { "type": "switch", "key": "enabled", "title": "听到 HOYO-MiX 就启动", "summary": "直接启动国服原神；未安装时打开米哈游启动器的原神页，再回退到云原神。跳转不弹确认框。", "default_value": true },
+      { "type": "edittext", "key": "game_path", "title": "国服原神路径（可选）", "summary": "默认自动检测。检测不到时填写 YuanShen.exe 的完整路径。", "default_value": "" },
+      { "type": "edittext", "key": "launcher_path", "title": "米哈游启动器路径（可选）", "summary": "默认自动检测。手动填写国服米哈游启动器 launcher.exe 的完整路径。", "default_value": "" },
+      { "type": "button", "title": "查看状态", "arrow_type": "none", "on_click": "io.github.gaboron.spwgenshin.GenshinPlugin.showStatus" }
+    ]
+  }]
+}
