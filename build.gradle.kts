@@ -1,10 +1,16 @@
+import java.util.jar.Manifest
 import java.util.zip.ZipFile
 
 plugins { java }
 group = "io.github.gaboron.spwgenshin"
+val projectUrl = providers.gradleProperty("projectUrl")
 
 java { toolchain { languageVersion.set(JavaLanguageVersion.of(25)) } }
 tasks.withType<JavaCompile>().configureEach { options.encoding = "UTF-8" }
+tasks.withType<AbstractArchiveTask>().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
 
 repositories {
     maven("https://maven-central.storage-download.googleapis.com/maven2/")
@@ -29,6 +35,7 @@ tasks.jar {
         "Plugin-Provider" to "GaBoron",
         "Plugin-Name" to "原神，启动！",
         "Plugin-Description" to "播放 HOYO-MiX 时自动启动国服原神，未安装则打开启动器或云原神",
+        "Plugin-Open-Source-Url" to projectUrl.get(),
         "Plugin-Has-Config" to "true"
     ))
 }
@@ -59,6 +66,8 @@ tasks.register<Zip>("plugin") {
             check("classes/preference_config.json" in names)
             check("classes/audio/genshin-start.wav" in names)
             check("classes/io/github/gaboron/spwgenshin/GenshinPlugin.class" in names)
+            val manifest = zip.getInputStream(zip.getEntry("classes/META-INF/MANIFEST.MF")).use { Manifest(it) }
+            check(manifest.mainAttributes.getValue("Plugin-Open-Source-Url") == projectUrl.get())
             check(names.none { it.startsWith("lib/") || it.endsWith(".dll") || it.endsWith(".exe") })
         }
     }
