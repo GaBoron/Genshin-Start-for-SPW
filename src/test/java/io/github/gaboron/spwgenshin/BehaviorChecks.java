@@ -17,7 +17,7 @@ import javax.sound.sampled.UnsupportedAudioFileException;
 public final class BehaviorChecks {
     private static int checks;
 
-    public static void main(String[] args) throws IOException, UnsupportedAudioFileException {
+    public static void main(String[] args) throws Exception {
         artistMatching();
         playbackGating();
         playbackClock();
@@ -25,6 +25,7 @@ public final class BehaviorChecks {
         installationValidation();
         jumpScareOrdering();
         soundAsset();
+        checks += PluginLifecycleChecks.verify();
         String currentExecutable = Path.of(ProcessHandle.current().info().command().orElseThrow()).getFileName().toString();
         expect(WindowsLaunch.processRunning(currentExecutable), "enumerate current process without elevation");
         expect(!WindowsLaunch.processRunning("spw-genshin-nonexistent-process.exe"), "missing process");

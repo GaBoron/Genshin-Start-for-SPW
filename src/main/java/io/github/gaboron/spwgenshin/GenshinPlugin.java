@@ -46,7 +46,6 @@ public final class GenshinPlugin extends SpwPlugin {
             listener = this::configure;
             config.addConfigChangeListener(listener);
             configure(config.getConfig());
-            selectCurrent();
             current = this;
         } catch (Exception | LinkageError error) {
             stop();
@@ -65,21 +64,23 @@ public final class GenshinPlugin extends SpwPlugin {
 
     static GenshinPlugin active() { return current; }
 
+    synchronized void mediaChanged(PlaybackExtensionPoint.MediaItem media) {
+        // Callback metadata is available without library-read permission. Querying
+        // getCurrentMediaItem() here or during start would abort permissionless use.
+        if (trigger != null) trigger.select(track(media));
+    }
+
     synchronized void playing(boolean playing) {
         if (trigger == null) return;
-        selectCurrent();
         submit(trigger.playing(playing));
     }
 
     synchronized void position(long position) {
         if (trigger == null) return;
-        selectCurrent();
         submit(trigger.position(position));
     }
 
     synchronized void seek() { if (trigger != null) trigger.seek(); }
-
-    private void selectCurrent() { trigger.select(track(WorkshopApi.playback().getCurrentMediaItem())); }
 
     private static PlaybackTrigger.Track track(PlaybackExtensionPoint.MediaItem media) {
         if (media == null) return null;

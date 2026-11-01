@@ -7,6 +7,11 @@ import java.util.logging.Logger;
 
 /** Observes playback without replacing lyrics or changing SPW's transport. */
 public final class GenshinPlaybackExtension implements PlaybackExtensionPoint {
+    @Override public String onBeforeLoadLyrics(MediaItem mediaItem) {
+        dispatch(plugin -> plugin.mediaChanged(mediaItem));
+        return null;
+    }
+
     @Override public void onIsPlayingChanged(boolean playing) { dispatch(plugin -> plugin.playing(playing)); }
     @Override public void onPositionUpdated(long position) { dispatch(plugin -> plugin.position(position)); }
     @Override public void onSeekTo(long position) { dispatch(GenshinPlugin::seek); }

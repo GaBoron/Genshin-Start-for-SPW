@@ -12,7 +12,7 @@ SPW 的 Windows 整蛊插件。播放歌曲的歌手或专辑艺术家包含 **H
 
 ## 安装与设置
 
-在 SPW 的插件管理中导入 `spw-genshin-start-0.1.0.spmod` 并启用。需要支持 Workshop API `0.1.0-dev23` 的 Windows 版 SPW。
+在 SPW 的插件管理中导入 `spw-genshin-start-0.1.0.spmod` 并启用，随后切换到一首 HOYO-MiX 歌曲即可触发。需要支持 Workshop API `0.1.0-dev23` 的 Windows 版 SPW。
 
 默认读取安装记录和常见安装目录。若游戏或启动器被移动、未登记或使用自定义位置，在插件设置中填写国服 `YuanShen.exe` 或米哈游启动器 `launcher.exe` 的完整路径。可通过“听到 HOYO-MiX 就启动”开关停止自动跳转。
 
