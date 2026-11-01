@@ -4,19 +4,27 @@ import com.sun.jna.platform.FileUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
 
-/** Behavioral checks never call ShellExecuteEx or start a game, launcher or browser. */
+/** Checks never call ShellExecuteEx, start applications or open an audio output device. */
 public final class BehaviorChecks {
     private static int checks;
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, UnsupportedAudioFileException {
         artistMatching();
         playbackGating();
         playbackClock();
         routing();
         installationValidation();
+        jumpScareOrdering();
+        soundAsset();
         String currentExecutable = Path.of(ProcessHandle.current().info().command().orElseThrow()).getFileName().toString();
         expect(WindowsLaunch.processRunning(currentExecutable), "enumerate current process without elevation");
         expect(!WindowsLaunch.processRunning("spw-genshin-nonexistent-process.exe"), "missing process");
@@ -25,7 +33,7 @@ public final class BehaviorChecks {
         expect(found.equals(invalidOverrides), "malformed overrides preserve automatic discovery");
         System.out.println("Read-only local discovery: " + found);
         System.out.println("Selected route (not opened): " + WindowsLaunch.plan(found));
-        System.out.println("Passed " + checks + " behavior checks; no applications launched.");
+        System.out.println("Passed " + checks + " behavior checks; no applications launched or audio played.");
     }
 
     private static void artistMatching() {
@@ -179,6 +187,95 @@ public final class BehaviorChecks {
 
     private static Path chooseGame(Path candidate) {
         return WindowsInstallations.choose(List.of(candidate), List.of()).game();
+    }
+
+    private static void jumpScareOrdering() throws IOException {
+        var target = WindowsLaunch.plan(new WindowsInstallations.Found(null, null));
+        var events = new ArrayList<String>();
+        var output = new SilentSound(events);
+        try (var scare = new JumpScare(selected -> events.add("opened"), output)) {
+            expect(events.isEmpty(), "initialization is silent");
+            var success = scare.launch(target);
+            expect(success.opened() && success.soundError() == null, "launch and sound accepted");
+            expect(events.equals(List.of("opened", "sound")), "sound strictly follows launch success");
+            events.clear();
+            scare.configure(false);
+            expect(events.equals(List.of("stop")), "disable stops sound");
+            events.clear();
+            expect(!scare.launch(target).opened() && events.isEmpty(), "disabled effect never opens or plays");
+            scare.configure(true);
+            expect(events.isEmpty(), "enable gives no audible preview");
+        }
+
+        events.clear();
+        try (var scare = new JumpScare(selected -> { throw new IOException("simulated cancelled elevation"); }, output)) {
+            try {
+                scare.launch(target);
+                throw new AssertionError("Expected launch failure");
+            } catch (IOException expected) {
+                expect(events.isEmpty(), "failed or cancelled launch produces no sound");
+            }
+        }
+
+        events.clear();
+        var duringLaunch = new AtomicReference<JumpScare>();
+        try (var scare = new JumpScare(selected -> {
+            events.add("opened");
+            duringLaunch.get().configure(false);
+            duringLaunch.get().configure(true);
+        }, output)) {
+            duringLaunch.set(scare);
+            expect(scare.launch(target).opened(), "launch may finish across disable and re-enable");
+            expect(events.equals(List.of("opened", "stop")), "disable invalidates the in-flight sound even after re-enable");
+        }
+
+        events.clear();
+        var closing = new AtomicReference<JumpScare>();
+        var closed = new JumpScare(selected -> {
+            events.add("opened");
+            closing.get().close();
+        }, output);
+        closing.set(closed);
+        expect(closed.launch(target).opened(), "in-flight launch can finish after unload");
+        expect(events.equals(List.of("opened", "stop")), "unload prevents late sound");
+        events.clear();
+        expect(!closed.launch(target).opened() && events.isEmpty(), "closed effect cannot reopen or play");
+
+        events.clear();
+        var brokenOutput = new JumpScare.Sound() {
+            @Override public void play() throws LineUnavailableException { throw new LineUnavailableException("simulated missing audio device"); }
+            @Override public void stop() { }
+        };
+        try (var scare = new JumpScare(selected -> events.add("opened"), brokenOutput)) {
+            var outcome = scare.launch(target);
+            expect(outcome.opened() && outcome.soundError() instanceof LineUnavailableException,
+                    "audio failure preserves successful launch without a second launch");
+        }
+    }
+
+    private static void soundAsset() throws IOException, UnsupportedAudioFileException {
+        var url = JumpScare.class.getResource("/audio/genshin-start.wav");
+        expect(url != null, "sound resource is bundled");
+        try (var stream = AudioSystem.getAudioInputStream(url)) {
+            var format = stream.getFormat();
+            expect(format.getEncoding().equals(AudioFormat.Encoding.PCM_SIGNED), "sound decodes with built-in PCM support");
+            expect(format.getSampleSizeInBits() == 16 && format.getChannels() == 2, "portable stereo PCM16 audio");
+            double duration = stream.getFrameLength() / format.getFrameRate();
+            expect(duration > 11 && duration < 11.2, "full original effect duration preserved");
+        }
+        // The real implementation decodes the WAV at startup without acquiring a sound line.
+        try (var scare = new JumpScare()) {
+            scare.configure(false);
+            expect(!scare.launch(WindowsLaunch.plan(new WindowsInstallations.Found(null, null))).opened(),
+                    "real sound initializes and remains silent while disabled");
+        }
+    }
+
+    private static final class SilentSound implements JumpScare.Sound {
+        private final List<String> events;
+        SilentSound(List<String> events) { this.events = events; }
+        @Override public void play() { events.add("sound"); }
+        @Override public void stop() { events.add("stop"); }
     }
 
     private static void expect(boolean condition, String message) {

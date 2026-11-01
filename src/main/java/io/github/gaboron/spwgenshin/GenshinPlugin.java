@@ -18,24 +18,24 @@ public final class GenshinPlugin extends SpwPlugin {
     private static final Logger LOG = Logger.getLogger("原神，启动！");
     private static volatile GenshinPlugin current;
     private PlaybackTrigger trigger;
+    private JumpScare scare;
     private ExecutorService worker;
     private ConfigManager config;
     private Consumer<ConfigHelper> listener;
     private volatile String gamePath = "";
     private volatile String launcherPath = "";
-    private volatile String status = "等待播放 HOYO-MiX";
 
     public GenshinPlugin(PluginContext context) { super(context); }
 
     @Override public synchronized void start() {
         if (trigger != null) return;
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
-            status = "当前插件仅支持 Windows";
-            LOG.info(status);
+            LOG.info("当前插件仅支持 Windows");
             return;
         }
         try {
             trigger = new PlaybackTrigger();
+            scare = new JumpScare();
             worker = Executors.newSingleThreadExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "SPW Genshin Start");
                 thread.setDaemon(true);
@@ -60,7 +60,7 @@ public final class GenshinPlugin extends SpwPlugin {
         launcherPath = settings.get("launcher_path", "");
         boolean enabled = settings.get("enabled", true);
         trigger.configure(enabled);
-        status = enabled ? "等待播放 HOYO-MiX" : "已关闭自动启动";
+        scare.configure(enabled);
     }
 
     static GenshinPlugin active() { return current; }
@@ -91,41 +91,39 @@ public final class GenshinPlugin extends SpwPlugin {
     private void submit(PlaybackTrigger.Ticket ticket) {
         if (ticket == null) return;
         PlaybackTrigger owner = trigger;
+        JumpScare effect = scare;
         try {
-            worker.execute(() -> launch(owner, ticket));
+            worker.execute(() -> launch(owner, ticket, effect));
         } catch (RejectedExecutionException ignored) { /* Plugin stopped while receiving a host callback. */ }
     }
 
-    private void launch(PlaybackTrigger owner, PlaybackTrigger.Ticket ticket) {
+    private void launch(PlaybackTrigger owner, PlaybackTrigger.Ticket ticket, JumpScare effect) {
         try {
             if (!owner.isCurrent(ticket)) return;
             var found = new WindowsInstallations().discover(gamePath, launcherPath);
             var target = WindowsLaunch.target(found);
             if (!owner.beginLaunch(ticket)) return;
-            if (target.isEmpty()) {
-                status = "国服原神已在运行";
-                return;
+            if (target.isEmpty()) return;
+            var outcome = effect.launch(target.get());
+            if (outcome.opened()) LOG.info("已打开：" + target.get().description());
+            if (outcome.soundError() != null) {
+                LOG.log(Level.WARNING, "启动已完成，音效播放失败", outcome.soundError());
             }
-            new WindowsLaunch().open(target.get());
-            status = "已打开：" + target.get().description();
-            LOG.info(status);
         } catch (Exception | LinkageError error) {
             owner.beginLaunch(ticket);
-            status = "启动失败：" + error.getMessage();
-            LOG.log(Level.WARNING, status, error);
+            LOG.log(Level.WARNING, "启动失败", error);
         }
-    }
-
-    public static void showStatus() {
-        GenshinPlugin plugin = current;
-        WorkshopApi.ui().toast(plugin == null ? "插件未启用或当前系统不受支持" : plugin.status,
-                WorkshopApi.Ui.ToastType.Success);
     }
 
     @Override public synchronized void stop() {
         if (current == this) current = null;
         if (trigger != null) trigger.close();
         trigger = null;
+        if (scare != null) {
+            try { scare.close(); }
+            catch (Exception | LinkageError error) { LOG.log(Level.WARNING, "停止音效失败", error); }
+        }
+        scare = null;
         if (config != null && listener != null) {
             try { config.removeConfigChangeListener(listener); }
             catch (Exception | LinkageError error) { LOG.log(Level.WARNING, "取消设置监听失败", error); }

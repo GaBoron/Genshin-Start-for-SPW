@@ -50,13 +50,14 @@ tasks.register<Zip>("plugin") {
     archiveFileName.set("spw-genshin-start-${project.version}.spmod")
     destinationDirectory.set(layout.buildDirectory.dir("libs"))
     into("classes") { from(tasks.jar.map { zipTree(it.archiveFile) }) }
-    from("README.md", "LICENSE")
+    from("README.md", "LICENSE", "THIRD_PARTY_NOTICES.md")
     doLast {
         ZipFile(archiveFile.get().asFile).use { zip ->
             val names = zip.entries().asSequence().map { it.name }.toSet()
             check("classes/META-INF/MANIFEST.MF" in names)
             check("classes/META-INF/extensions.idx" in names)
             check("classes/preference_config.json" in names)
+            check("classes/audio/genshin-start.wav" in names)
             check("classes/io/github/gaboron/spwgenshin/GenshinPlugin.class" in names)
             check(names.none { it.startsWith("lib/") || it.endsWith(".dll") || it.endsWith(".exe") })
         }
