@@ -6,6 +6,10 @@ group = "io.github.gaboron.spwgenshin"
 val projectUrl = providers.gradleProperty("projectUrl")
 
 java { toolchain { languageVersion.set(JavaLanguageVersion.of(25)) } }
+sourceSets.test {
+    java.setSrcDirs(listOf("test/java"))
+    resources.setSrcDirs(listOf("test/resources"))
+}
 tasks.withType<JavaCompile>().configureEach { options.encoding = "UTF-8" }
 tasks.withType<AbstractArchiveTask>().configureEach {
     isPreserveFileTimestamps = false

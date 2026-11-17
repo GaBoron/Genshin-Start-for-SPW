@@ -26,4 +26,6 @@ SPW 的 Windows 整蛊插件。播放歌曲的歌手或专辑艺术家包含 **H
 .\gradlew.bat check plugin
 ```
 
+`check` 运行 `test/` 中的行为与生命周期检查，覆盖播放触发、启动路由、音效顺序和无曲库权限的插件加载；不会实际启动游戏或播放音效。真实 SPW 中的回调和启动效果需在宿主中验证。
+
 插件包生成在本仓库的 `build/libs/` 目录，可直接导入 SPW；安装包仅通过 GitHub Releases 分发。
